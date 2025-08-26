@@ -1,4 +1,3 @@
-# .github/workflows/deploy.yml
 name: Deploy Vite site to GitHub Pages (Windows)
 
 on:
@@ -20,27 +19,18 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
-      - name: Install
-        run: npm ci
+      - run: npm ci
         shell: pwsh
-
-      - name: Build
-        run: npm run build
+      - run: npm run build
         shell: pwsh
-
-      # SPA fallback so refreshes/deep links don't 404 on Pages
-      - name: Create 404.html
-        run: Copy-Item -Path dist/index.html -Destination dist/404.html
+      # SPA fallback so refresh/deep links don’t 404
+      - run: node -e "require('fs').copyFileSync('dist/index.html','dist/404.html')"
         shell: pwsh
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
