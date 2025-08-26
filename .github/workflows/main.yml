@@ -1,4 +1,4 @@
-name: Deploy Vite site to GitHub Pages (Windows)
+name: Deploy Vite site to GitHub Pages (Windows, auto-detect app dir)
 
 on:
   push:
@@ -10,8 +10,9 @@ permissions:
   pages: write
   id-token: write
 
+# cancel older runs on the same branch only
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -19,20 +20,44 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          #cache: npm
-      - run: npm install
+
+      # 🔎 Find the first package.json outside node_modules and export APP_DIR
+      - name: Locate app directory
+        id: locate
         shell: pwsh
-      - run: npm run build
+        run: |
+          $pkg = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter package.json -File `
+                 | Where-Object { $_.FullName -notmatch '\\node_modules\\' } `
+                 | Select-Object -First 1
+          if (-not $pkg) { throw 'package.json not found in repository' }
+          "APP_DIR=$($pkg.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "APP_DIR=$($pkg.DirectoryName)"
+          Write-Host "Contents of APP_DIR:"; Get-ChildItem $pkg.DirectoryName
+
+      - name: Install deps
+        run: npm install
+        working-directory: ${{ env.APP_DIR }}
         shell: pwsh
+
+      - name: Build
+        run: npm run build
+        working-directory: ${{ env.APP_DIR }}
+        shell: pwsh
+
       # SPA fallback so refresh/deep links don’t 404
-      - run: node -e "require('fs').copyFileSync('dist/index.html','dist/404.html')"
+      - name: Create 404.html
+        run: node -e "require('fs').copyFileSync('dist/index.html','dist/404.html')"
+        working-directory: ${{ env.APP_DIR }}
         shell: pwsh
-      - uses: actions/upload-pages-artifact@v3
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: ${{ env.APP_DIR }}/dist
 
   deploy:
     needs: build
