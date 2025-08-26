@@ -1,0 +1,45 @@
+name: Deploy Vite site to GitHub Pages (Windows)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          #cache: npm
+      - run: npm install
+        shell: pwsh
+      - run: npm run build
+        shell: pwsh
+      # SPA fallback so refresh/deep links don’t 404
+      - run: node -e "require('fs').copyFileSync('dist/index.html','dist/404.html')"
+        shell: pwsh
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: windows-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
